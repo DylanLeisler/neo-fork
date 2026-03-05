@@ -102,6 +102,11 @@ clean:
 	$(MAKE) -C lib/libfont clean
 	rm -f $(TARGET).nds $(TARGET).arm7 $(TARGET).arm9
 
-rebuild: clean all
+rebuild:
+	$(MAKE) clean
+	$(MAKE) -j$$(nproc) all
+
+test: rebuild
+	./run_nds.sh
 
 FORCE: ;

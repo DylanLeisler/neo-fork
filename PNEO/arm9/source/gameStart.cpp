@@ -508,7 +508,7 @@ namespace SAVE {
         printEpisodeInfo( p_episode );
 
         switch( p_episode ) {
-        case 0:
+        case 0: {
             // Initialize character and send them to starting towm
             std::memcpy( SAV.getActiveFile( ).m_playername, "Test", OTLENGTH );
             SAV.getActiveFile( ).m_appearance = 1;
@@ -522,6 +522,12 @@ namespace SAVE {
 
             // Hand out badges
             SAVE::SAV.getActiveFile( ).m_HOENN_Badges = 0b1111'1111;
+            // // Set starter flag so Birch event doesn't block us
+            // SAVE::SAV.getActiveFile( ).setVar( SAVE::V_INITIAL_PKMN_CHOICE, 3 );
+
+            // // Give ourselves a Mudkip
+            // pokemon mudkip = pokemon( PKMN_MUDKIP, 50, 0, 0, 0 );
+            // SAVE::SAV.getActiveFile( ).setTeamPkmn( 0, &mudkip );
 
             // hand out useful items
             SAV.getActiveFile( ).m_bag.insert( BAG::bag::KEY_ITEMS, I_MACH_BIKE, 1 );
@@ -541,6 +547,7 @@ namespace SAVE {
             SAVE::SAV.getActiveFile( ).m_initGameItems[ 1 ] = I_SHINY_CHARM;
 
             return true;
+        }
         default: SAV.getActiveFile( ).m_gameType = UNUSED; return false;
         }
     }

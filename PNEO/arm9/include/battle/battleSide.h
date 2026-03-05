@@ -247,7 +247,7 @@ namespace BATTLE {
             return _slots[ p_slot ].getPkmn( );
         }
 
-        constexpr pokemon* getPkmnOrDisguise( u8 p_slot ) const {
+        inline pokemon* getPkmnOrDisguise( u8 p_slot ) const {
             return _slots[ p_slot ].getPkmnOrDisguise( );
         }
 

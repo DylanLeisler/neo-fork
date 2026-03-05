@@ -982,12 +982,11 @@ namespace BATTLE {
                 case A_UNNERVE:
                     p_ui->logAbility( getPkmnOrDisguise( p_opponent, p_slot ), p_opponent );
                     break;
-                case A_DISGUISE: {
+                case A_DISGUISE:
                     if( pkmn->getForme( ) == 0 ) {
                         p_ui->logAbility( getPkmnOrDisguise( p_opponent, p_slot ), p_opponent );
                     }
                     break;
-                }
                 // Stat changing abilities
                 case A_DAUNTLESS_SHIELD: {
                     p_ui->logAbility( getPkmnOrDisguise( p_opponent, p_slot ), p_opponent );
@@ -2842,8 +2841,12 @@ namespace BATTLE {
 
         bool ignoreEvasion = !!( p_move.m_moveData.m_flags & MF_IGNOREEVASION ) || p_critical;
 
-        s8 ev = s8( getStat( p_move.m_user.first, p_move.m_user.second, ACCURACY ) )
-                - ( ignoreEvasion * s8( getStat( p_target.first, p_target.second, EVASION ) ) );
+        // getStat(ACCURACY/EVASION) is shifted with neutral at 7.
+        // Convert to stage difference and ignore only target evasion when requested.
+        const s8 userAccShift = s8( getStat( p_move.m_user.first, p_move.m_user.second, ACCURACY ) );
+        const s8 tgtEvaShift
+            = ignoreEvasion ? s8( 7 ) : s8( getStat( p_target.first, p_target.second, EVASION ) );
+        s8 ev = userAccShift - tgtEvaShift;
 
         if( ev < -6 ) { ev = -6; }
         if( ev > 6 ) { ev = 6; }
@@ -3284,10 +3287,17 @@ namespace BATTLE {
         constexpr u8 TMP_BUFFER_SIZE = 100;
         char         buffer[ TMP_BUFFER_SIZE + 10 ];
 
+        const u8 maxSlots = getBattlingPKMNCount( _mode );
+        if( p_move.m_user.first >= field::NUM_SIDES || p_move.m_user.second >= maxSlots
+            || p_target.first >= field::NUM_SIDES || p_target.second >= maxSlots ) {
+            return false;
+        }
+
         auto user   = getPkmn( p_move.m_user.first, p_move.m_user.second );
         auto target = getPkmn( p_target.first, p_target.second );
-        if( user == nullptr || target == nullptr ) [[unlikely]] { return false; }
-
+        if( user == nullptr || target == nullptr ) [[unlikely]] {
+            return false;
+        }
         bool supprAbs    = suppressesAbilities( );
         auto userVolStat = getVolatileStatus( p_move.m_user.first, p_move.m_user.second );
 
@@ -3987,13 +3997,21 @@ namespace BATTLE {
             checkOnTakeDamage( p_ui, p_move, p_target, damage, effectiveness );
         }
 
-        if( !getPkmn( p_target.first, p_target.second )->canBattle( ) ) {
+        auto* postTarget = getPkmn( p_target.first, p_target.second );
+        if( postTarget == nullptr ) {
+            return true;
+        }
+        if( !postTarget->canBattle( ) ) {
             // pkmn fainted
             faintPokemon( p_ui, p_target.first, p_target.second );
         }
 
         // Check if user fainted
-        if( !user->canBattle( ) ) {
+        auto* postUser = getPkmn( p_move.m_user.first, p_move.m_user.second );
+        if( postUser == nullptr ) {
+            return true;
+        }
+        if( !postUser->canBattle( ) ) {
             faintPokemon( p_ui, p_move.m_user.first, p_move.m_user.second );
         }
 
@@ -4011,6 +4029,35 @@ namespace BATTLE {
         char         buffer[ TMP_BUFFER_SIZE + 10 ];
         bool         opponent = p_move.m_user.first;
         u8           slot     = p_move.m_user.second;
+        const u8     maxSlots = getBattlingPKMNCount( _mode );
+        const bool tutorialWildDuel = _isWildBattle && getBattlingPKMNCount( _mode ) == 1;
+
+        // Defensive target sanitization: malformed AI targets (e.g. 255,255) must not
+        // index battle sides/slots out of bounds.
+        std::vector<fieldPosition> safeTargets;
+        safeTargets.reserve( p_move.m_target.size( ) );
+        for( const auto& t : p_move.m_target ) {
+            if( t.first < field::NUM_SIDES && t.second < maxSlots ) { safeTargets.push_back( t ); }
+        }
+        if( safeTargets.empty( ) ) {
+            switch( p_move.m_moveData.m_target ) {
+            case TG_SELF:
+            case TG_ALLY_OR_SELF:
+            case TG_ALL_ALLIES:
+            case TG_ALLY:
+            case TG_ALLY_SIDE:
+            case TG_ALLY_TEAM:
+            case TG_FIELD:
+                safeTargets.push_back(
+                    fieldPosition( opponent, maxSlots ? std::min<u8>( slot, maxSlots - 1 ) : 0 ) );
+                break;
+            default:
+                safeTargets.push_back(
+                    fieldPosition( !opponent, field::PKMN_0 < maxSlots ? field::PKMN_0 : 0 ) );
+                break;
+            }
+        }
+        p_move.m_target = safeTargets;
 
         auto slotc = getVolatileStatus( opponent, slot );
 
@@ -4105,8 +4152,9 @@ namespace BATTLE {
 
         if( !getLockedMoveCount( opponent, slot ) ) { deducePP( opponent, slot, p_move.m_param ); }
         auto fmt = std::string( GET_STRING( 10 ) );
+        auto userForName = getPkmn( opponent, slot );
         snprintf( buffer, TMP_BUFFER_SIZE, fmt.c_str( ),
-                  p_ui->getPkmnName( getPkmnOrDisguise( opponent, slot ), opponent ).c_str( ),
+                  p_ui->getPkmnName( userForName, opponent ).c_str( ),
                   FS::getMoveName( p_move.m_param ).c_str( ) );
         p_ui->log( buffer );
 
@@ -4192,8 +4240,13 @@ namespace BATTLE {
                     protect = false;
                 }
 
-                if( ( p_move.m_moveData.m_flags & MF_PROTECT ) && !protect ) [[likely]] {
-                    bool critical = executeCriticalCheck( p_ui, p_move, p_move.m_target[ i ] );
+                const bool blockedByProtect
+                    = protect && ( p_move.m_moveData.m_flags & MF_PROTECT );
+                if( !blockedByProtect ) [[likely]] {
+                    bool critical = false;
+                    if( p_move.m_moveData.m_category != MH_STATUS ) {
+                        critical = executeCriticalCheck( p_ui, p_move, p_move.m_target[ i ] );
+                    }
 
                     // Check if the move misses
                     if( moveMisses( p_ui, p_move, p_move.m_target[ i ], critical ) ) {
@@ -4223,17 +4276,22 @@ namespace BATTLE {
                         }
 
                         continue;
-                    } else if( p_move.m_moveData.m_flags & MF_OHKO ) [[unlikely]] {
+                    }
+                    if( p_move.m_moveData.m_flags & MF_OHKO ) [[unlikely]] {
                         faintPokemon( p_ui, p_move.m_target[ i ].first,
                                       p_move.m_target[ i ].second );
                         p_ui->log( GET_STRING( 547 ) );
-                    } else if( p_move.m_moveData.m_category != MH_STATUS
-                               && !executeDamagingMove(
-                                   p_ui, p_move, p_move.m_target[ i ], critical,
-                                   j == 1 && strengthMod < 100 ? strengthMod : 100 ) ) {
-                        break;
+                    } else if( p_move.m_moveData.m_category != MH_STATUS ) {
+                        if( !executeDamagingMove(
+                                p_ui, p_move, p_move.m_target[ i ], critical,
+                                j == 1 && strengthMod < 100 ? strengthMod : 100 ) ) {
+                            break;
+                        }
                     }
                     hits++;
+                    if( tutorialWildDuel ) {
+                        break;
+                    }
                 }
 
                 // Pkmn fainted
@@ -4318,8 +4376,7 @@ namespace BATTLE {
                 }
 
                 // check for held item
-                checkItemAfterAttack( p_ui, p_move.m_target[ i ].first,
-                                      p_move.m_target[ i ].second );
+                checkItemAfterAttack( p_ui, p_move.m_target[ i ].first, p_move.m_target[ i ].second );
                 checkItemAfterAttack( p_ui, opponent, slot );
             }
 

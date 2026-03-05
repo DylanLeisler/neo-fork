@@ -78,6 +78,7 @@ namespace BATTLE {
         pkmnData            _pkmnData;
         std::vector<type>   _altTypes; // Type(s) the pkmn changed into
         type _extraType{ };            // Additional type due to forest's curse or trick-or-treat
+        mutable pokemon _displayPkmn;  // Stable per-slot buffer for disguise/display views
 
         u16 _usedItem = 0; // (held) item the pkmn used
 
@@ -903,28 +904,26 @@ namespace BATTLE {
             }
         }
 
-        constexpr pokemon* getPkmnOrDisguise( ) const {
+        inline pokemon* getPkmnOrDisguise( ) const {
             if( _status != NORMAL || _pokemon == nullptr ) { return nullptr; }
 
-            static pokemon result;
-
             if( !_isTransformed ) {
-                result = *_pokemon;
+                _displayPkmn = *_pokemon;
             } else {
-                result = _transformedPkmn;
+                _displayPkmn = _transformedPkmn;
             }
 
             if( isDisguised( ) ) {
-                result.m_boxdata.m_speciesId = _disguise->getSpecies( );
-                result.m_boxdata.m_altForme  = _disguise->getForme( );
-                result.m_boxdata.m_shinyType = _disguise->m_boxdata.m_shinyType;
-                result.m_boxdata.m_pid       = _disguise->m_boxdata.m_pid;
-                result.m_boxdata.m_oTId      = _disguise->m_boxdata.m_oTId;
-                result.m_boxdata.m_oTSid     = _disguise->m_boxdata.m_oTSid;
-                std::strncpy( result.m_boxdata.m_name, _disguise->m_boxdata.m_name,
+                _displayPkmn.m_boxdata.m_speciesId = _disguise->getSpecies( );
+                _displayPkmn.m_boxdata.m_altForme  = _disguise->getForme( );
+                _displayPkmn.m_boxdata.m_shinyType = _disguise->m_boxdata.m_shinyType;
+                _displayPkmn.m_boxdata.m_pid       = _disguise->m_boxdata.m_pid;
+                _displayPkmn.m_boxdata.m_oTId      = _disguise->m_boxdata.m_oTId;
+                _displayPkmn.m_boxdata.m_oTSid     = _disguise->m_boxdata.m_oTSid;
+                std::strncpy( _displayPkmn.m_boxdata.m_name, _disguise->m_boxdata.m_name,
                               PKMN_NAMELENGTH );
             }
-            return &result;
+            return &_displayPkmn;
         }
 
         inline bool isDisguised( ) const {

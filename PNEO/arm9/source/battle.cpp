@@ -369,15 +369,15 @@ namespace BATTLE {
 
             // Sort moves
             std::vector<battleMoveSelection> selection = std::vector<battleMoveSelection>( );
+            const u8                         maxSlots  = getBattlingPKMNCount( _policy.m_mode );
             for( u8 side = 0; side < field::NUM_SIDES; ++side )
                 for( u8 i = 0; i < getBattlingPKMNCount( _policy.m_mode ); ++i ) {
                     // Check for pursuit
                     if( moves[ side ][ i ].m_type == MT_ATTACK
                         && moves[ side ][ i ].m_param == M_PURSUIT ) [[unlikely]] {
-                        if( moves[ moves[ side ][ i ].m_target.first ]
-                                 [ moves[ side ][ i ].m_target.second ]
-                                     .m_type
-                            == MT_SWITCH ) [[unlikely]] {
+                        auto tg = moves[ side ][ i ].m_target;
+                        if( tg.first < field::NUM_SIDES && tg.second < maxSlots
+                            && moves[ tg.first ][ tg.second ].m_type == MT_SWITCH ) [[unlikely]] {
                             moves[ side ][ i ].m_type = MT_SWITCH_PURSUIT;
                         }
                     }
@@ -401,6 +401,22 @@ namespace BATTLE {
             // Execute moves
             for( size_t i = 0; i < sortedMoves.size( ); ++i ) {
                 WAIT( HALF_SEC );
+
+                if( sortedMoves[ i ].m_user.first >= field::NUM_SIDES
+                    || sortedMoves[ i ].m_user.second >= maxSlots ) {
+                    continue;
+                }
+
+                if( sortedMoves[ i ].m_type == MT_ATTACK || sortedMoves[ i ].m_type == MT_SWITCH
+                    || sortedMoves[ i ].m_type == MT_USE_ITEM
+                    || sortedMoves[ i ].m_type == MT_MESSAGE_ITEM
+                    || sortedMoves[ i ].m_type == MT_MESSAGE_MOVE ) {
+                    if( !_field.getPkmn( sortedMoves[ i ].m_user.first,
+                                         sortedMoves[ i ].m_user.second ) ) {
+                        continue;
+                    }
+                }
+
                 // show messages for special items
                 if( sortedMoves[ i ].m_type == MT_MESSAGE_ITEM ) [[unlikely]] {
                     auto itmnm = FS::getItemName( sortedMoves[ i ].m_param );
@@ -752,11 +768,11 @@ namespace BATTLE {
         res.m_user              = { field::PLAYER_SIDE, p_slot };
         switch( p_button ) {
         case 0: // Choose attack
-            SOUND::playSoundEffect( SFX_CHOOSE );
-            res = chooseAttack( p_slot, p_allowMegaEvolution );
-            if( res.m_type != MT_CANCEL ) { return res; }
-            break;
-        case 1: { // Choose pkmn
+                SOUND::playSoundEffect( SFX_CHOOSE );
+                res = chooseAttack( p_slot, p_allowMegaEvolution );
+                if( res.m_type != MT_CANCEL ) { return res; }
+                break;
+            case 1: { // Choose pkmn
             SOUND::playSoundEffect( SFX_CHOOSE );
 
             STS::partyScreen pt = STS::partyScreen(
@@ -765,25 +781,25 @@ namespace BATTLE {
 
             auto r = pt.run( p_slot );
 
-            _battleUI.init( _field.getWeather( ), _field.getTerrain( ) );
+                _battleUI.init( _field.getWeather( ), _field.getTerrain( ) );
 
-            for( u8 side = 0; side < field::NUM_SIDES; ++side )
-                for( u8 j2 = 0; j2 < getBattlingPKMNCount( _policy.m_mode ); ++j2 ) {
-                    auto st = _field.getSlotStatus( side, j2 );
-                    if( st == slot::status::NORMAL ) {
-                        _battleUI.updatePkmn( side, j2, _field.getPkmnOrDisguise( side, j2 ) );
+                for( u8 side = 0; side < field::NUM_SIDES; ++side )
+                    for( u8 j2 = 0; j2 < getBattlingPKMNCount( _policy.m_mode ); ++j2 ) {
+                        auto st = _field.getSlotStatus( side, j2 );
+                        if( st == slot::status::NORMAL ) {
+                            _battleUI.updatePkmn( side, j2, _field.getPkmn( side, j2 ) );
+                        }
                     }
-                }
 
-            if( r.getSelectedPkmn( ) < 255 ) {
-                res.m_type  = MT_SWITCH;
-                res.m_param = r.getSelectedPkmn( );
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot );
-                return res;
+                if( r.getSelectedPkmn( ) < 255 ) {
+                    res.m_type  = MT_SWITCH;
+                    res.m_param = r.getSelectedPkmn( );
+                    _battleUI.showMoveSelection( _field.getPkmn( field::PLAYER_SIDE, p_slot ),
+                                                 p_slot );
+                    return res;
+                }
+                break;
             }
-            break;
-        }
         case 2: // Run / Cancel
             if( _isWildBattle ) {
                 SOUND::playSoundEffect( SFX_CHOOSE );
@@ -828,13 +844,13 @@ namespace BATTLE {
                     for( u8 j2 = 0; j2 < getBattlingPKMNCount( _policy.m_mode ); ++j2 ) {
                         auto st = _field.getSlotStatus( side, j2 );
                         if( st == slot::status::NORMAL ) {
-                            _battleUI.updatePkmn( side, j2, _field.getPkmnOrDisguise( side, j2 ) );
+                            _battleUI.updatePkmn( side, j2, _field.getPkmn( side, j2 ) );
                         }
                     }
 
                 if( itm ) {
-                    _battleUI.showMoveSelection(
-                        _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ), p_slot );
+                    _battleUI.showMoveSelection( _field.getPkmn( field::PLAYER_SIDE, p_slot ),
+                                                 p_slot );
                     return res;
                 }
             } else {
@@ -858,11 +874,12 @@ namespace BATTLE {
             return _field.getStoredMove( field::PLAYER_SIDE, p_slot );
         }
 
-        auto choices = _battleUI.showMoveSelection(
-            _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ), p_slot );
+        auto* playerPkmn = _field.getPkmn( field::PLAYER_SIDE, p_slot );
+        if( playerPkmn == nullptr ) { return NO_OP_SELECTION; }
+
+        auto choices = _battleUI.showMoveSelection( playerPkmn, p_slot );
         u8 curSel = 0;
-        _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ), p_slot,
-                                     curSel );
+        _battleUI.showMoveSelection( playerPkmn, p_slot, curSel );
 
         if( _isMockBattle ) {
             if( _field.getPkmn( field::PLAYER_SIDE, field::PKMN_0 )->m_stats.m_curHP * 2
@@ -876,8 +893,7 @@ namespace BATTLE {
                 WAIT( FULL_SEC );
 
                 SOUND::playSoundEffect( SFX_CHOOSE );
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot, curSel = 3 );
+                _battleUI.showMoveSelection( playerPkmn, p_slot, curSel = 3 );
                 WAIT( FULL_SEC );
 
                 BAG::bagViewer bv = BAG::bagViewer( _playerTeam, BAG::bagViewer::MOCK_BATTLE );
@@ -895,8 +911,7 @@ namespace BATTLE {
                         }
                     }
 
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot );
+                _battleUI.showMoveSelection( playerPkmn, p_slot );
                 return res;
             }
         }
@@ -908,21 +923,22 @@ namespace BATTLE {
             swiWaitForVBlank( );
             pressed = keysUp( );
             held    = keysHeld( );
+            const bool touchActive = ( held & KEY_TOUCH );
 
             for( auto i : choices ) {
-                if( i.first.inRange( touch ) ) {
+                if( touchActive && i.first.inRange( touch ) ) {
                     _battleUI.showMoveSelection(
-                        _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ), p_slot,
-                        curSel = i.second );
+                        playerPkmn, p_slot, curSel = i.second );
 
                     bool bad = false;
-                    while( touch.px || touch.py ) {
+                    while( held & KEY_TOUCH ) {
                         swiWaitForVBlank( );
                         if( !i.first.inRange( touch ) ) {
                             bad = true;
                             break;
                         }
                         scanKeys( );
+                        held = keysHeld( );
                         touchRead( &touch );
                         swiWaitForVBlank( );
                     }
@@ -930,10 +946,9 @@ namespace BATTLE {
                         res = handleMoveSelectionSelection( p_slot, p_allowMegaEvolution, curSel );
                         if( res.m_type != MT_CANCEL ) { return res; }
                         _battleUI.showMoveSelection(
-                            _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ), p_slot );
+                            playerPkmn, p_slot );
                         _battleUI.showMoveSelection(
-                            _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ), p_slot,
-                            curSel );
+                            playerPkmn, p_slot, curSel );
                     }
                 }
             }
@@ -947,10 +962,8 @@ namespace BATTLE {
                 res = handleMoveSelectionSelection( p_slot, p_allowMegaEvolution, curSel );
                 if( res.m_type != MT_CANCEL ) { return res; }
 
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot );
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot, curSel );
+                _battleUI.showMoveSelection( playerPkmn, p_slot );
+                _battleUI.showMoveSelection( playerPkmn, p_slot, curSel );
 
                 cooldown = COOLDOWN_COUNT;
             } else if( GET_KEY_COOLDOWN( KEY_RIGHT ) ) {
@@ -964,8 +977,7 @@ namespace BATTLE {
                     curSel = 0;
                 }
 
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot, curSel );
+                _battleUI.showMoveSelection( playerPkmn, p_slot, curSel );
 
                 cooldown = COOLDOWN_COUNT;
             } else if( GET_KEY_COOLDOWN( KEY_LEFT ) ) {
@@ -977,8 +989,7 @@ namespace BATTLE {
                     curSel--;
                 }
 
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot, curSel );
+                _battleUI.showMoveSelection( playerPkmn, p_slot, curSel );
 
                 cooldown = COOLDOWN_COUNT;
             } else if( GET_KEY_COOLDOWN( KEY_DOWN ) || GET_KEY_COOLDOWN( KEY_UP ) ) {
@@ -990,8 +1001,7 @@ namespace BATTLE {
                     curSel = 0;
                 }
 
-                _battleUI.showMoveSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
-                                             p_slot, curSel );
+                _battleUI.showMoveSelection( playerPkmn, p_slot, curSel );
 
                 cooldown = COOLDOWN_COUNT;
             }
@@ -1809,9 +1819,12 @@ namespace BATTLE {
                             }
                             if( i < getBattlingPKMNCount( _policy.m_mode ) ) {
                                 // update battleUI
-                                _battleUI.updatePkmnStats(
-                                    field::PLAYER_SIDE, i,
-                                    _field.getPkmnOrDisguise( field::PLAYER_SIDE, i ), true );
+                                auto* activePkmn = _field.getPkmn( field::PLAYER_SIDE, i );
+                                if( activePkmn ) {
+                                    _battleUI.updatePkmnStats( field::PLAYER_SIDE, i, activePkmn,
+                                                               true );
+                                } else {
+                                }
                             }
                         }
                     }

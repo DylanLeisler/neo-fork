@@ -53,6 +53,40 @@ along with Pokémon neo.  If not, see <http://www.gnu.org/licenses/>.
 #endif
 
 namespace FS {
+    namespace {
+        inline void sanitizeBoxPokemonStrings( boxPokemon& p_pokemon ) {
+            p_pokemon.m_name[ PKMN_NAMELENGTH - 1 ] = '\0';
+            p_pokemon.m_oT[ OTLENGTH - 1 ]          = '\0';
+        }
+
+        inline void sanitizeSaveStrings( SAVE::saveGame& p_save ) {
+            for( u8 f = 0; f < SAVE::MAX_SAVE_FILES; ++f ) {
+                auto& file = p_save.m_saveFile[ f ];
+                file.m_playername[ OTLENGTH - 1 ] = '\0';
+
+                for( u8 i = 0; i < SAVE::NUM_PARTY_SLOTS; ++i ) {
+                    sanitizeBoxPokemonStrings( file.m_pkmnTeam[ i ].m_boxdata );
+                }
+                for( u8 i = 0; i < 6; ++i ) {
+                    sanitizeBoxPokemonStrings( file.m_dayCarePkmn[ i ] );
+                }
+                for( u8 i = 0; i < 3; ++i ) {
+                    sanitizeBoxPokemonStrings( file.m_dayCareEgg[ i ] );
+                }
+                for( u8 b = 0; b < SAVE::MAX_BOXES; ++b ) {
+                    for( u8 s = 0; s < BOX::MAX_PKMN_PER_BOX; ++s ) {
+                        sanitizeBoxPokemonStrings( file.m_storedPokemon[ b ][ s ] );
+                    }
+                }
+
+                sanitizeBoxPokemonStrings( file.m_traderPokemon );
+                for( u8 i = 0; i < 5; ++i ) {
+                    sanitizeBoxPokemonStrings( file.m_unusedPkmn[ i ] );
+                }
+            }
+        }
+    } // namespace
+
     const char* OW_NPC_BANK_PATH     = "nitro:/PICS/SPRITES/npc.rsdb";
     FILE*       NPC_BANK_FILE        = nullptr;
     u32         NPC_BANK_FILE_HEADER = 0;
@@ -216,13 +250,17 @@ namespace FS {
     bool readSave( const char* p_path ) {
 #ifndef FLASHCARD
         CARD::readData( 0, reinterpret_cast<u8*>( &SAVE::SAV ), sizeof( SAVE::saveGame ) );
-        if( SAVE::SAV.isGood( ) ) { return true; }
+        if( SAVE::SAV.isGood( ) ) {
+            sanitizeSaveStrings( SAVE::SAV );
+            return true;
+        }
 #endif
 
         FILE* f = FS::open( p_path, "PNEO", ".sav", "r" );
         if( f != nullptr ) {
             fread( &SAVE::SAV, sizeof( SAVE::saveGame ), 1, f );
             fclose( f );
+            if( SAVE::SAV.isGood( ) ) { sanitizeSaveStrings( SAVE::SAV ); }
             return SAVE::SAV.isGood( );
         }
         return false;

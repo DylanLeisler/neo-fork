@@ -299,7 +299,8 @@ namespace BATTLE {
          * @brief: Faints the specified pokemon. Also deals the necessary damage.
          */
         inline void faintPokemon( battleUI* p_ui, bool p_opponent, u8 p_slot ) {
-            auto pkmn = getPkmnOrDisguise( p_opponent, p_slot );
+            auto* pkmn = getPkmn( p_opponent, p_slot );
+            if( pkmn == nullptr ) { return; }
             _sides[ p_opponent ? OPPONENT_SIDE : PLAYER_SIDE ].faintPokemon( p_slot );
             p_ui->updatePkmnStats( p_opponent, p_slot, pkmn, false );
             p_ui->faintPkmn( p_opponent, p_slot, pkmn );
@@ -324,8 +325,8 @@ namespace BATTLE {
          */
         inline void damagePokemon( battleUI* p_ui, bool p_opponent, u8 p_slot, u16 p_damage ) {
             _sides[ p_opponent ? OPPONENT_SIDE : PLAYER_SIDE ].damagePokemon( p_slot, p_damage );
-            p_ui->updatePkmnStats( p_opponent, p_slot, getPkmnOrDisguise( p_opponent, p_slot ),
-                                   false );
+            auto* pkmn = getPkmn( p_opponent, p_slot );
+            if( pkmn ) { p_ui->updatePkmnStats( p_opponent, p_slot, pkmn, false ); }
         }
 
         /*
@@ -333,8 +334,8 @@ namespace BATTLE {
          */
         inline void healPokemon( battleUI* p_ui, bool p_opponent, u8 p_slot, u16 p_damage ) {
             _sides[ p_opponent ? OPPONENT_SIDE : PLAYER_SIDE ].healPokemon( p_slot, p_damage );
-            p_ui->updatePkmnStats( p_opponent, p_slot, getPkmnOrDisguise( p_opponent, p_slot ),
-                                   false );
+            auto* pkmn = getPkmn( p_opponent, p_slot );
+            if( pkmn ) { p_ui->updatePkmnStats( p_opponent, p_slot, pkmn, false ); }
         }
 
         /*
@@ -559,7 +560,7 @@ namespace BATTLE {
             return _sides[ p_opponent ? OPPONENT_SIDE : PLAYER_SIDE ].getPkmn( p_slot );
         }
 
-        constexpr pokemon* getPkmnOrDisguise( bool p_opponent, u8 p_slot ) {
+        inline pokemon* getPkmnOrDisguise( bool p_opponent, u8 p_slot ) {
             return _sides[ p_opponent ? OPPONENT_SIDE : PLAYER_SIDE ].getPkmnOrDisguise( p_slot );
         }
 

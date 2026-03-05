@@ -25,6 +25,8 @@ You should have received a copy of the GNU General Public License
 along with Pokémon neo.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include <algorithm>
+
 #include "battle/battle.h"
 #include "battle/battleField.h"
 #include "battle/battleSide.h"
@@ -52,6 +54,7 @@ namespace BATTLE {
         res.m_user              = { field::OPPONENT_SIDE, p_slot };
         auto pkmn               = _field.getPkmn( field::OPPONENT_SIDE, p_slot );
         if( pkmn == nullptr ) { return res; }
+        const u8 maxSlots = getBattlingPKMNCount( _policy.m_mode );
 
         // Use item if remotely sensible
         for( u8 i = 0; i < trainerData::NUM_ITEMS; ++i ) {
@@ -114,7 +117,7 @@ namespace BATTLE {
         default:
             [[likely]] case 0 : { // Wild pkmn
                 if( str ) {
-                    // Pick a random move
+                    // Pick a random move.
                     u8 mv = rand( ) % 4;
                     while( !canUse[ mv ] ) { mv = rand( ) % 4; }
                     res.m_param = _field.getPkmn( field::OPPONENT_SIDE, p_slot )->getMove( mv );
@@ -131,20 +134,39 @@ namespace BATTLE {
                     canTarget[ i ] = _field.getPkmn( i < 2, i & 1 ) != nullptr;
                 }
                 u8 ctg = rand( ) % 2;
+                auto setSafeFallbackTarget = [&] {
+                    if( _field.getPkmn( field::PLAYER_SIDE, field::PKMN_0 ) != nullptr ) {
+                        res.m_target = fieldPosition( field::PLAYER_SIDE, field::PKMN_0 );
+                    } else if( _field.getPkmn( field::OPPONENT_SIDE, p_slot ) != nullptr ) {
+                        res.m_target = fieldPosition( field::OPPONENT_SIDE,
+                                                      maxSlots ? std::min<u8>( p_slot, maxSlots - 1 )
+                                                               : field::PKMN_0 );
+                    } else {
+                        res.m_target = fieldPosition( field::OPPONENT_SIDE, field::PKMN_0 );
+                    }
+                };
 
                 switch( tg ) {
                 case TG_RANDOM:
                 case TG_ANY_FOE:
-                    [[likely]] case TG_ANY : while( !canTarget[ 2 + ctg ] ) {
+                    [[likely]] case TG_ANY : if( !canTarget[ 2 ] && !canTarget[ 3 ] ) {
+                        setSafeFallbackTarget( );
+                        break;
+                    }
+                    while( !canTarget[ 2 + ctg ] ) {
                         ctg = rand( ) & 1;
                     }
                     res.m_target = fieldPosition( field::PLAYER_SIDE, ctg );
                     break;
                 case TG_ALLY_OR_SELF:
+                    if( !canTarget[ 0 ] && !canTarget[ 1 ] ) {
+                        setSafeFallbackTarget( );
+                        break;
+                    }
                     while( !canTarget[ ctg ] ) { ctg = rand( ) & 1; }
                     res.m_target = fieldPosition( field::OPPONENT_SIDE, ctg );
                     break;
-                    [[unlikely]] default : break;
+                    [[unlikely]] default : setSafeFallbackTarget( ); break;
                 }
 
                 return res;

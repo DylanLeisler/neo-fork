@@ -969,6 +969,7 @@ namespace FS {
         static u8    lastLang  = -1;
         static FILE* bankfile  = nullptr;
         static FILE* fbankfile = nullptr;
+        static u16   bankEntryLen = PKMN_NAMELENGTH;
         auto         id        = -1;
         if( p_forme && ( id = formeIdx( p_pkmnId, p_forme ) ) != -1 ) {
             if( !checkOrOpen( fbankfile, FORME_NAME_PATH, lastLang, p_language ) ) { return false; }
@@ -977,7 +978,34 @@ namespace FS {
             if( !checkOrOpen( bankfile, POKEMON_NAME_PATH, lastLang, p_language ) ) {
                 return false;
             }
-            if( getString( bankfile, PKMN_NAMELENGTH, p_pkmnId, p_out ) ) { return true; }
+
+            // Older FSROOT builds may store display names in 15-byte records.
+            // Detect record width once from bank size to avoid misaligned name reads.
+            if( bankEntryLen == PKMN_NAMELENGTH ) {
+                auto oldPos = std::ftell( bankfile );
+                if( oldPos >= 0 && !std::fseek( bankfile, 0, SEEK_END ) ) {
+                    auto endPos = std::ftell( bankfile );
+                    if( endPos > 0 ) {
+                        auto entries = u32( MAX_PKMN ) + 1;
+                        if( entries && !( endPos % entries ) ) {
+                            auto candidate = u16( endPos / entries );
+                            if( candidate >= PKMN_NAMELENGTH && candidate <= 32 ) {
+                                bankEntryLen = candidate;
+                            }
+                        }
+                    }
+                    std::fseek( bankfile, oldPos, SEEK_SET );
+                }
+            }
+
+            if( std::fseek( bankfile, p_pkmnId * bankEntryLen, SEEK_SET ) ) { return false; }
+
+            char tmp[ 40 ] = { 0 };
+            if( !std::fread( tmp, 1, bankEntryLen, bankfile ) ) { return false; }
+
+            std::memset( p_out, 0, PKMN_NAMELENGTH );
+            std::memcpy( p_out, tmp, std::min<size_t>( PKMN_NAMELENGTH - 1, bankEntryLen ) );
+            return true;
         }
         return false;
     }

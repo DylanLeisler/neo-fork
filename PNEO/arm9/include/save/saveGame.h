@@ -668,7 +668,7 @@ namespace SAVE {
             }
 #ifdef DESQUID
             // special desquid episode used for testing purposes.
-            // res.push_back( 0 );
+            res.push_back( 0 );
 #endif
             return res;
         }

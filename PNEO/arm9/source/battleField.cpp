@@ -3201,6 +3201,7 @@ namespace BATTLE {
 
     u16 field::getEffectiveness( battleMove p_move, fieldPosition p_target ) {
         u16 res = 100;
+        bool appliedSuperEffective = false;
 
         auto target = getPkmn( p_target.first, p_target.second );
         if( target == nullptr ) [[unlikely]] { return 0; }
@@ -3274,13 +3275,23 @@ namespace BATTLE {
                 continue;
             }
 
-            if( t == TYPE_WATER && p_move.m_param == M_FREEZE_DRY ) { curval = 200; }
+            if( t == TYPE_WATER && p_move.m_param == M_FREEZE_DRY ) { curval = 150; }
 
             if( t == TYPE_FLYING ) {
                 if( !suppressesWeather( ) && _weather == WE_HEAVY_WINDS ) [[unlikely]] { continue; }
             }
 
             if( !curval && items && target->getItem( ) == I_RING_TARGET ) [[unlikely]] { continue; }
+
+            // Dual-type weakness tuning:
+            // keep first super-effective layer at 1.5x, reduce the second to 1.2x.
+            if( curval > 100 ) {
+                if( appliedSuperEffective ) {
+                    curval = 120;
+                } else {
+                    appliedSuperEffective = true;
+                }
+            }
 
             res = ( res * curval / 100 );
         }

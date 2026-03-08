@@ -113,6 +113,44 @@ namespace SAVE {
         SAV.getActiveFile( ).m_gameType = NORMAL;
         IO::initOAMTable( true );
 
+#if defined( T_BATTLE ) && ( T_BATTLE == 1 )
+        // Fast-start path for battle testing: skip intro, avatar selection, and naming flow.
+        SAV.getActiveFile( ).m_appearance = 0;
+        std::memset( SAV.getActiveFile( ).m_playername, 0, OTLENGTH );
+        std::memcpy( SAV.getActiveFile( ).m_playername, "Test", 4 );
+        SAV.getActiveFile( ).setFlag( F_RIVAL_APPEARANCE, 1 - SAV.getActiveFile( ).m_appearance );
+        SAV.getActiveFile( ).setFlag( F_DEX_OBTAINED, 1 );
+        SAV.getActiveFile( ).setFlag( F_NAT_DEX_OBTAINED, 1 );
+
+        pokemon gardevoir = pokemon( PKMN_GARDEVOIR, 50 );
+        pokemon lucario   = pokemon( PKMN_LUCARIO, 50 );
+        pokemon espeon    = pokemon( PKMN_ESPEON, 50 );
+        auto lockDeterministicBattleStats = []( pokemon& p ) {
+            for( u8 i = 0; i < 6; ++i ) { p.IVset( i, 31 ); }
+            p.m_boxdata.setNature( NATURE_HARDY );
+            p.m_boxdata.setAbility( 0 );
+            p.recalculateStats( );
+            p.heal( );
+        };
+        lockDeterministicBattleStats( gardevoir );
+        lockDeterministicBattleStats( lucario );
+        lockDeterministicBattleStats( espeon );
+        // Swap Gardevoir's move slot 0 (top-left) with slot 2 (bottom-left).
+        std::swap( gardevoir.m_boxdata.m_moves[ 0 ], gardevoir.m_boxdata.m_moves[ 2 ] );
+        gardevoir.m_boxdata.m_curPP[ 0 ] = FS::getMoveData( gardevoir.m_boxdata.m_moves[ 0 ] ).m_pp;
+        gardevoir.m_boxdata.m_curPP[ 2 ] = FS::getMoveData( gardevoir.m_boxdata.m_moves[ 2 ] ).m_pp;
+        SAV.getActiveFile( ).setTeamPkmn( 0, &gardevoir );
+        SAV.getActiveFile( ).setTeamPkmn( 1, &lucario );
+        SAV.getActiveFile( ).setTeamPkmn( 2, &espeon );
+
+        SAV.getActiveFile( ).m_currentMap = 11;
+        SAV.getActiveFile( ).m_player
+            = MAP::mapPlayer( { 0x32, 0xCE, 3 }, u16( 10 * SAV.getActiveFile( ).m_appearance ),
+                              MAP::moveMode::WALK );
+        SAVE::SAV.getActiveFile( ).m_player.m_direction = MAP::RIGHT;
+        return true;
+#endif
+
         // Initial text
         IO::clearScreen( true, true, true );
         IO::regularFont->setColor( IO::WHITE_IDX, 1 );
@@ -485,10 +523,18 @@ namespace SAVE {
 
         // initialize player data / send player to a reasonable start position on the map
 
+#if defined( T_BATTLE ) && ( T_BATTLE == 1 )
+        // Test battle start spawn (map 11_6_1, block 18,14).
+        SAV.getActiveFile( ).m_currentMap = 11;
+        SAV.getActiveFile( ).m_player
+            = MAP::mapPlayer( { 0x32, 0xCE, 3 }, u16( 10 * SAV.getActiveFile( ).m_appearance ),
+                              MAP::moveMode::WALK );
+#else
         SAV.getActiveFile( ).m_currentMap = 10;
-        SAV.getActiveFile( ).m_player     = MAP::mapPlayer(
-            { u16( 0xb4 + ( 9 * !!SAV.getActiveFile( ).m_appearance ) ), 0x15c, 3 },
-            u16( 10 * SAV.getActiveFile( ).m_appearance ), MAP::moveMode::WALK );
+        SAV.getActiveFile( ).m_player
+            = MAP::mapPlayer( { u16( 0xb4 + ( 9 * !!SAV.getActiveFile( ).m_appearance ) ), 0x15c, 3 },
+                              u16( 10 * SAV.getActiveFile( ).m_appearance ), MAP::moveMode::WALK );
+#endif
         SAVE::SAV.getActiveFile( ).m_player.m_direction = MAP::RIGHT;
         IO::clearScreen( true, true, true );
         IO::fadeScreen( IO::fadeType::CLEAR_DARK, true, true );
@@ -514,9 +560,11 @@ namespace SAVE {
             SAV.getActiveFile( ).m_appearance = 1;
             SAV.getActiveFile( ).setFlag( F_RIVAL_APPEARANCE,
                                           1 - SAV.getActiveFile( ).m_appearance );
-            SAV.getActiveFile( ).m_currentMap = 10;
-            SAV.getActiveFile( ).m_player     = MAP::mapPlayer(
-                { u16( 0xb3 + ( 9 * !!SAV.getActiveFile( ).m_appearance ) ), 0x15c, 3 },
+            // Original spawn:
+            // m_currentMap = 10; pos = { 0xb3 + ( 9 * !!appearance ), 0x15c, 3 }.
+            SAV.getActiveFile( ).m_currentMap = 11;
+            SAV.getActiveFile( ).m_player = MAP::mapPlayer(
+                { 0x32, 0xCE, 3 }, // 11_6_1 at block (18,14), interpreted as x=1*32+18, y=6*32+14
                 u16( 10 * SAV.getActiveFile( ).m_appearance ), MAP::moveMode::WALK );
             SAVE::SAV.getActiveFile( ).m_player.m_direction = MAP::RIGHT;
 
@@ -535,7 +583,7 @@ namespace SAVE {
             SAV.getActiveFile( ).m_bag.insert( BAG::bag::KEY_ITEMS, I_POKE_RADAR, 1 );
             SAV.getActiveFile( ).m_bag.insert( BAG::bag::KEY_ITEMS, I_EXP_ALL, 1 );
             SAV.getActiveFile( ).m_bag.insert( BAG::bag::KEY_ITEMS, I_SUPER_ROD, 1 );
-            SAV.getActiveFile( ).m_currentMap     = 10;
+            SAV.getActiveFile( ).m_currentMap     = 11;
             SAV.getActiveFile( ).m_registeredItem = I_MACH_BIKE;
             for( u8 i = 10; i; --i ) {
                 SOUND::setVolume( 0x10 * i );

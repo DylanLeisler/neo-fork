@@ -26,6 +26,7 @@ along with Pokémon neo.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <string>
+#include <cstdlib>
 
 #include "bag/bagViewer.h"
 #include "battle/battle.h"
@@ -229,6 +230,14 @@ namespace BATTLE {
 
         battleEndReason battleEnd = BATTLE_NONE;
         initBattle( p_firstPkmnIsFollowing );
+#ifdef AUTOTEST_BATTLE
+        // Reset RNG so automated runs are reproducible across launches.
+        constexpr unsigned int AUTOTEST_BATTLE_SEED = 0xC0DE5EEDu;
+        std::srand( AUTOTEST_BATTLE_SEED );
+        _battleUI.log( "[AUTOTEST] active: auto-selecting battle actions." );
+        _battleUI.log( "[AUTOTEST] rng seed: C0DE5EED" );
+        WAIT( HALF_SEC );
+#endif
 
         swiWaitForVBlank( );
         scanKeys( );
@@ -237,6 +246,15 @@ namespace BATTLE {
         // Main battle loop
         while( !_maxRounds || _round < _maxRounds ) {
             _round++;
+#ifdef AUTOTEST_BATTLE
+            // Safety valve: convert a potential softlock into an explicit failed test signal.
+            if( _round > 128 ) {
+                _battleUI.log( "[AUTOTEST] FAIL: round limit exceeded (128)." );
+                WAIT( FULL_SEC );
+                endBattle( battleEnd = BATTLE_ROUND_LIMIT );
+                return battleEnd;
+            }
+#endif
 
             // register pkmn for exp
             for( u8 i = 0; i < getBattlingPKMNCount( _policy.m_mode ); ++i ) {
@@ -498,6 +516,10 @@ namespace BATTLE {
 
                 // check if the battle ended (e.g. if all pkmn got ko'ed)
                 if( endConditionHit( battleEnd ) ) {
+#ifdef AUTOTEST_BATTLE
+                    _battleUI.log( "[AUTOTEST] PASS: battle ended during action phase." );
+                    WAIT( HALF_SEC );
+#endif
                     endBattle( battleEnd );
                     return battleEnd;
                 }
@@ -508,6 +530,10 @@ namespace BATTLE {
 
             distributeEXP( );
             if( endConditionHit( battleEnd ) ) {
+#ifdef AUTOTEST_BATTLE
+                _battleUI.log( "[AUTOTEST] PASS: battle ended after end-of-turn effects." );
+                WAIT( HALF_SEC );
+#endif
                 endBattle( battleEnd );
                 return battleEnd;
             }
@@ -699,6 +725,24 @@ namespace BATTLE {
             strgl       = strgl || canUse[ i ];
         }
 
+#ifdef AUTOTEST_BATTLE
+        if( !strgl ) {
+            res.m_param = M_STRUGGLE;
+            return chooseTarget( res );
+        }
+
+        // Deterministic move choice for regression tests:
+        // choose the first currently usable move slot.
+        for( u8 i = 0; i < 4; ++i ) {
+            if( !canUse[ i ] ) { continue; }
+            res.m_param = _field.getPkmn( field::PLAYER_SIDE, p_slot )->getMove( i );
+            return chooseTarget( res );
+        }
+
+        res.m_param = M_STRUGGLE;
+        return chooseTarget( res );
+#endif
+
         if( _isMockBattle ) {
             // Always choose Tackle
             _battleUI.showAttackSelection( _field.getPkmnOrDisguise( field::PLAYER_SIDE, p_slot ),
@@ -877,6 +921,11 @@ namespace BATTLE {
         auto* playerPkmn = _field.getPkmn( field::PLAYER_SIDE, p_slot );
         if( playerPkmn == nullptr ) { return NO_OP_SELECTION; }
 
+#ifdef AUTOTEST_BATTLE
+        // Skip move-selection UI in automated test mode and directly pick an attack.
+        return chooseAttack( p_slot, false );
+#endif
+
         auto choices = _battleUI.showMoveSelection( playerPkmn, p_slot );
         u8 curSel = 0;
         _battleUI.showMoveSelection( playerPkmn, p_slot, curSel );
@@ -921,6 +970,7 @@ namespace BATTLE {
             scanKeys( );
             touchRead( &touch );
             swiWaitForVBlank( );
+            _battleUI.tickIdleBob( );
             pressed = keysUp( );
             held    = keysHeld( );
             const bool touchActive = ( held & KEY_TOUCH );
@@ -933,6 +983,7 @@ namespace BATTLE {
                     bool bad = false;
                     while( held & KEY_TOUCH ) {
                         swiWaitForVBlank( );
+                        _battleUI.tickIdleBob( );
                         if( !i.first.inRange( touch ) ) {
                             bad = true;
                             break;
@@ -941,6 +992,7 @@ namespace BATTLE {
                         held = keysHeld( );
                         touchRead( &touch );
                         swiWaitForVBlank( );
+                        _battleUI.tickIdleBob( );
                     }
                     if( !bad ) {
                         res = handleMoveSelectionSelection( p_slot, p_allowMegaEvolution, curSel );

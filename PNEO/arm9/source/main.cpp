@@ -302,6 +302,42 @@ START:
     MAP::curMap->registerOnLocationChangedHandler( IO::showNewLocation );
     MAP::curMap->draw( OBJPRIORITY_2, false, HAD_NEW_GAME );
 
+#if defined( T_SPAWN_TRAINER ) && ( T_SPAWN_TRAINER == 1 )
+    if( HAD_NEW_GAME ) {
+        // One-shot trainer battle hook for test builds.
+        BATTLE::battleTrainer t = { };
+        std::snprintf( t.m_strings.m_name, BATTLE::trainerStrings::NAME_LENGTH, "Test Trainer" );
+        std::snprintf( t.m_strings.m_message1, BATTLE::trainerStrings::MSG_LENGTH, "Let's battle." );
+        std::snprintf( t.m_strings.m_message2, BATTLE::trainerStrings::MSG_LENGTH, "Nice fight." );
+        std::snprintf( t.m_strings.m_message3, BATTLE::trainerStrings::MSG_LENGTH, "I win this one." );
+
+        t.m_data.m_trainerClass = 0;
+        t.m_data.m_trainerBG    = 0;
+        t.m_data.m_battlePlat1  = 10;
+        t.m_data.m_battlePlat2  = 10;
+        t.m_data.m_battleBG     = MAP::curMap->currentData( ).m_battleBG;
+        t.m_data.m_AILevel      = 5;
+        t.m_data.m_numPokemon   = 1;
+
+        t.m_data.m_pokemon[ 0 ].m_speciesId = PKMN_CHANSEY;
+        t.m_data.m_pokemon[ 0 ].m_forme     = 0;
+        t.m_data.m_pokemon[ 0 ].m_level     = 50;
+        t.m_data.m_pokemon[ 0 ].m_moves[ 0 ] = M_TACKLE;
+        t.m_data.m_pokemon[ 0 ].m_moves[ 1 ] = M_GROWL;
+        t.m_data.m_pokemon[ 0 ].m_moves[ 2 ] = M_SAND_ATTACK;
+        t.m_data.m_pokemon[ 0 ].m_moves[ 3 ] = M_BITE;
+
+        BATTLE::battle( SAVE::SAV.getActiveFile( ).m_pkmnTeam,
+                        SAVE::SAV.getActiveFile( ).getTeamPkmnCount( ), t )
+            .start( false );
+
+        SOUND::restartBGM( );
+        FADE_TOP_DARK( );
+        MAP::curMap->draw( OBJPRIORITY_2, false, false );
+        IO::init( );
+    }
+#endif
+
     // auto curLoc = MAP::curMap->getCurrentLocationId( );
     // SOUND::onLocationChange( curLoc, false );
     // for( u8 i = 0; i < 60; ++i ) { swiWaitForVBlank( ); }

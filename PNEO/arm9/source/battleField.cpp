@@ -3567,9 +3567,9 @@ namespace BATTLE {
 
             if( hasType( p_move.m_user.first, p_move.m_user.second, moveType ) ) {
                 if( !supprAbs && user->getAbility( ) == A_ADAPTABILITY ) {
-                    damage <<= 1;
+                    damage = ( damage * 8 ) / 5;
                 } else {
-                    damage = ( damage * 3 ) >> 1;
+                    damage = ( damage * 6 ) / 5;
                 }
             }
 

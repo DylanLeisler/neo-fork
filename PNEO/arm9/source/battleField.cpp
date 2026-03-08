@@ -2922,6 +2922,14 @@ namespace BATTLE {
         auto         target = getPkmn( p_target.first, p_target.second );
         if( user == nullptr || target == nullptr ) [[unlikely]] { return false; }
 
+#ifdef AUTOTEST_BATTLE
+        (void) p_ui;
+        (void) p_move;
+        (void) p_target;
+        // Keep automated battle tests deterministic by disabling RNG crit checks.
+        return false;
+#endif
+
         bool opponent = p_move.m_user.first;
         u8   slot     = p_move.m_user.second;
 
@@ -3536,7 +3544,13 @@ namespace BATTLE {
 
             if( p_critical ) { damage = ( damage * 3 ) >> 1; }
 
-            u8 rnd = rand( ) & 15;
+            u8 rnd = 0;
+#ifdef AUTOTEST_BATTLE
+            // Fixed max roll in automated battle tests.
+            rnd = 15;
+#else
+            rnd = rand( ) & 15;
+#endif
             damage = ( damage * ( 85 + rnd ) / 100 );
 
             // stab

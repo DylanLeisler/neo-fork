@@ -498,10 +498,7 @@ namespace BAG {
                     IO::smallFont->setColor( 0, 0 );
                     IO::smallFont->setColor( IO::GRAY_IDX, 1 );
                     IO::smallFont->setColor( 0, 2 );
-                    IO::smallFont->printString( "!", 45, SECOND_LINE - 2, true );
                     char buffer[ 10 ];
-                    snprintf( buffer, 8, "%d", _playerTeam[ i ].m_level );
-                    IO::smallFont->printStringC( buffer, 53, SECOND_LINE - 1, true );
 
                     snprintf( buffer, 8, "%3d", _playerTeam[ i ].m_stats.m_curHP );
                     IO::smallFont->printStringC( buffer, 45 + 80 - 44, SECOND_LINE - 1, true );

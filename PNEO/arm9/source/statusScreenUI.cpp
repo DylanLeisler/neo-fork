@@ -619,13 +619,6 @@ namespace STS {
                 IO::regularFont->printStringC( p_pokemon->m_boxdata.m_name, 22, 31, p_bottom );
             }
 
-            // Level
-            IO::smallFont->setColor( 0, 0 );
-            IO::smallFont->setColor( IO::WHITE_IDX, 1 );
-            IO::smallFont->setColor( IO::GRAY_IDX, 2 );
-            IO::smallFont->printString( ( "!" + std::to_string( p_pokemon->m_level ) ).c_str( ), 24,
-                                        39, p_bottom );
-
             // Gender
             if( p_pokemon->getSpecies( ) != PKMN_NIDORAN_F
                 && p_pokemon->getSpecies( ) != PKMN_NIDORAN_M ) {
@@ -1095,26 +1088,14 @@ namespace STS {
                 }
             } else if( p_pokemon->isForeign( ) ) {
                 if( p_pokemon->m_boxdata.m_fateful ) {
-                    snprintf( buffer, 49, GET_STRING( IO::STR_UI_STS_APP_FATEFUL_ENC_AT_LEVEL ),
-                              p_pokemon->m_boxdata.m_gotLevel );
-                    IO::regularFont->printStringC( buffer, INFO_X_SUB + 12,
-                                                   INFO_LINE_SUB( currentLine++ ), true );
-                } else {
-                    snprintf( buffer, 49, GET_STRING( IO::STR_UI_STS_APP_MET_AT_LEVEL ),
-                              p_pokemon->m_boxdata.m_gotLevel );
-                    IO::regularFont->printStringC( buffer, INFO_X_SUB + 12,
+                    IO::regularFont->printStringC( GET_STRING( IO::STR_UI_STS_FATEFUL_ENC ),
+                                                   INFO_X_SUB + 12,
                                                    INFO_LINE_SUB( currentLine++ ), true );
                 }
             } else {
                 if( p_pokemon->m_boxdata.m_fateful ) {
-                    snprintf( buffer, 49, GET_STRING( IO::STR_UI_STS_FATEFUL_ENC_AT_LEVEL ),
-                              p_pokemon->m_boxdata.m_gotLevel );
-                    IO::regularFont->printStringC( buffer, INFO_X_SUB + 12,
-                                                   INFO_LINE_SUB( currentLine++ ), true );
-                } else {
-                    snprintf( buffer, 49, GET_STRING( IO::STR_UI_STS_MET_AT_LEVEL ),
-                              p_pokemon->m_boxdata.m_gotLevel );
-                    IO::regularFont->printStringC( buffer, INFO_X_SUB + 12,
+                    IO::regularFont->printStringC( GET_STRING( IO::STR_UI_STS_FATEFUL_ENC ),
+                                                   INFO_X_SUB + 12,
                                                    INFO_LINE_SUB( currentLine++ ), true );
                 }
             }

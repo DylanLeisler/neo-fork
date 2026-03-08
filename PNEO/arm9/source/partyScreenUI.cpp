@@ -657,12 +657,7 @@ namespace STS {
                 IO::smallFont->setColor( IO::WHITE_IDX, 1 );
                 IO::smallFont->setColor( IO::GRAY_IDX, 2 );
 
-                IO::smallFont->printString( "!", anchor_x + 5, anchor_y + 33, false );
-
                 char buffer[ 10 ];
-                snprintf( buffer, 8, "%d", _team[ p_pos ].m_level );
-
-                IO::smallFont->printString( buffer, anchor_x + 14, anchor_y + 32, false );
 
                 snprintf( buffer, 8, "%3d", _team[ p_pos ].m_stats.m_curHP );
                 IO::smallFont->printString( buffer, anchor_x + 116 - 32 - 24, anchor_y + 32,

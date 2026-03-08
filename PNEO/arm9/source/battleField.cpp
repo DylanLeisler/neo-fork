@@ -3340,7 +3340,8 @@ namespace BATTLE {
                                !supprAbs && p_move.m_param != M_SUNSTEEL_STRIKE, p_critical );
             }
 
-            damage = ( user->m_level * 2 ) / 5 + 2;
+            // Level scaling removed: keep a fixed base factor (equivalent to Lv50).
+            damage = 22;
 
             // base power modifying stuff
             u16 movePower = getMovePower( p_move );

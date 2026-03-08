@@ -109,4 +109,14 @@ rebuild:
 test: rebuild
 	./run_nds.sh
 
+autotest:
+	$(MAKE) clean
+	$(MAKE) -j$$(nproc) AUTOTEST=1 all
+	./run_nds.sh
+
+full:
+	$(MAKE) -C tools/fsdata clean
+	$(MAKE) -C tools/fsdata
+	$(MAKE) test
+
 FORCE: ;

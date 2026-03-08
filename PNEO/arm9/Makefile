@@ -162,6 +162,32 @@ endif
 ifdef FLASHCARD
 CFLAGS	+=	-DFLASHCARD
 endif
+ifdef AUTOTEST
+CFLAGS	+=	-DAUTOTEST_BATTLE
+endif
+ifdef T_BATTLE
+CFLAGS	+=	-DT_BATTLE=$(T_BATTLE)
+endif
+ifdef T_SPAWN_TRAINER
+CFLAGS	+=	-DT_SPAWN_TRAINER=$(T_SPAWN_TRAINER)
+endif
+
+# Explicit release-build marker for UI/flow gating.
+# Default: release build. Test/developer toggles set this to 0.
+RELEASE_BUILD_FLAG := 1
+ifdef DESQUID
+RELEASE_BUILD_FLAG := 0
+endif
+ifdef AUTOTEST
+RELEASE_BUILD_FLAG := 0
+endif
+ifdef T_BATTLE
+RELEASE_BUILD_FLAG := 0
+endif
+ifdef T_SPAWN_TRAINER
+RELEASE_BUILD_FLAG := 0
+endif
+CFLAGS	+=	-DNEO_RELEASE_BUILD=$(RELEASE_BUILD_FLAG)
 
 
 CFLAGS	+=	$(INCLUDE) -DARM9

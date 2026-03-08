@@ -52,6 +52,8 @@ namespace BATTLE {
 
         weather _currentWeather;
         terrain _currentTerrain;
+        u8      _idleBobTick   = 0;
+        s8      _idleBobOffset = 0;
 
         void initTop( );
         void initSub( );
@@ -82,6 +84,7 @@ namespace BATTLE {
          * @brief: Plays the shiny animation for the given pkmn.
          */
         void animateShiny( bool p_opponent, u8 p_slot, u8 p_shinyType = 0 ) const;
+        void animateReleaseWobble( bool p_opponent, u8 p_pos );
 
         /*
          * @brief: Plays the boosts animation for the given stat change.
@@ -108,6 +111,11 @@ namespace BATTLE {
          * screen.
          */
         void init( weather p_initialWeather, terrain p_initialTerrain );
+
+        /*
+         * @brief: Applies a subtle idle bob to visible battlers.
+         */
+        void tickIdleBob( );
 
         void deinit( );
 

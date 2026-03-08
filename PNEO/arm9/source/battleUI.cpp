@@ -26,6 +26,7 @@ along with Pokémon neo.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <cstdio>
+#include <cstring>
 
 #include "bag/bagViewer.h"
 #include "bag/item.h"
@@ -50,6 +51,16 @@ along with Pokémon neo.  If not, see <http://www.gnu.org/licenses/>.
 #include "sound/sound.h"
 
 namespace BATTLE {
+    namespace {
+        inline void copySafePkmnName( const pokemon* p_pokemon,
+                                      char ( &p_out )[ PKMN_NAMELENGTH + 1 ] ) {
+            std::memset( p_out, 0, sizeof( p_out ) );
+            if( p_pokemon != nullptr ) {
+                std::memcpy( p_out, p_pokemon->m_boxdata.m_name, PKMN_NAMELENGTH );
+            }
+            p_out[ PKMN_NAMELENGTH ] = '\0';
+        }
+    } // namespace
 
 // Top screen
 // (opp 1, opp 2, own 1, own 2)
@@ -974,6 +985,45 @@ namespace BATTLE {
         pal[ 255 ]            = IO::RGB( 23, 0, 0 );
     }
 
+    void battleUI::tickIdleBob( ) {
+        // Tiny 1px oscillation to keep battlers from looking fully static.
+        ++_idleBobTick;
+        // Keep movement speed (1px up/down step), but add extra idle interval.
+        // 16f rest -> 16f up -> 16f down -> 16f extra rest (repeat).
+        const u8 phase      = ( _idleBobTick >> 4 ) & 3;
+        const s8 nextOffset = ( phase == 1 ) ? -1 : 0;
+        const s8 delta      = nextOffset - _idleBobOffset;
+        if( !delta ) { return; }
+        _idleBobOffset = nextOffset;
+
+        SpriteEntry* oam = IO::OamTop->oamBuffer;
+        for( u8 battlerIdx = 0; battlerIdx < 4; ++battlerIdx ) {
+            if( oam[ SPR_PKMN_START_OAM( battlerIdx ) ].isHidden ) { continue; }
+            for( u8 i = 0; i < 4; ++i ) {
+                oam[ SPR_PKMN_START_OAM( battlerIdx ) + i ].y += delta;
+                oam[ SPR_PKMN_SHADOW_START_OAM( battlerIdx ) + i ].y += delta;
+            }
+        }
+        IO::updateOAM( false );
+    }
+
+    void battleUI::animateReleaseWobble( bool p_opponent, u8 p_pos ) {
+        SpriteEntry* oam = IO::OamTop->oamBuffer;
+        const u8     idx = 2 * ( !p_opponent ) + p_pos;
+
+        // Noticeable left-right settle: centered at start and end.
+        constexpr s8 steps[] = { -8, 16, -12, 8, -4, 0 };
+        for( const s8 dx : steps ) {
+            for( u8 i = 0; i < 4; ++i ) {
+                oam[ SPR_PKMN_START_OAM( idx ) + i ].x += dx;
+                oam[ SPR_PKMN_SHADOW_START_OAM( idx ) + i ].x += dx;
+            }
+            IO::updateOAM( false );
+            swiWaitForVBlank( );
+            swiWaitForVBlank( );
+        }
+    }
+
     void battleUI::init( weather p_initialWeather, terrain p_initialTerrain ) {
         for( u8 i = 0; i < 2; ++i ) {
             u16* pal = IO::BG_PAL( i );
@@ -1050,6 +1100,7 @@ namespace BATTLE {
     std::string battleUI::getPkmnName( pokemon* p_pokemon, bool p_opponent,
                                        bool p_sentenceStart ) const {
         char        buffer[ 50 ];
+        char        safeName[ PKMN_NAMELENGTH + 1 ] = { 0 };
         std::string fmt = "%s";
         if( p_opponent && _isWildBattle ) {
             if( p_sentenceStart ) {
@@ -1064,7 +1115,11 @@ namespace BATTLE {
                 fmt = std::string( GET_STRING( 310 ) );
             }
         }
-        snprintf( buffer, 49, fmt.c_str( ), p_pokemon->m_boxdata.m_name );
+        if( p_pokemon != nullptr ) {
+            std::memcpy( safeName, p_pokemon->m_boxdata.m_name, PKMN_NAMELENGTH );
+            safeName[ PKMN_NAMELENGTH ] = '\0';
+        }
+        snprintf( buffer, 49, fmt.c_str( ), safeName );
         return std::string( buffer );
     }
 
@@ -1339,13 +1394,6 @@ namespace BATTLE {
                 IO::regularFont->printString( p_pokemon->m_boxdata.m_name, anchorx, anchory,
                                               false );
             }
-
-            // Level
-            IO::smallFont->setColor( 0, 0 );
-            IO::smallFont->setColor( 250, 1 );
-            IO::smallFont->setColor( 251, 2 );
-            IO::smallFont->printString( ( "!" + std::to_string( p_pokemon->m_level ) ).c_str( ),
-                                        anchorx - 2, anchory + 9, false );
 
             // Gender
             if( p_pokemon->getSpecies( ) != PKMN_NIDORAN_F
@@ -1679,6 +1727,8 @@ namespace BATTLE {
 
     void battleUI::startWildBattle( pokemon* p_pokemon ) {
         SpriteEntry* oam = IO::OamTop->oamBuffer;
+        char         pkmnName[ PKMN_NAMELENGTH + 1 ];
+        copySafePkmnName( p_pokemon, pkmnName );
 
         IO::fadeScreen( IO::UNFADE, true, true );
         REG_BLDCNT       = BLEND_ALPHA | BLEND_DST_BG3;
@@ -1742,7 +1792,7 @@ namespace BATTLE {
         updatePkmnStats( true, 0, p_pokemon );
 
         char buffer[ 50 ];
-        snprintf( buffer, 49, GET_STRING( 394 ), p_pokemon->m_boxdata.m_name );
+        snprintf( buffer, 49, GET_STRING( 394 ), pkmnName );
         log( std::string( buffer ) );
     }
 
@@ -1791,9 +1841,12 @@ namespace BATTLE {
     }
 
     void battleUI::sendOutPkmn( bool p_opponent, u8 p_pos, pokemon* p_pokemon ) {
+        if( p_pokemon == nullptr ) { return; }
         if( p_pokemon != nullptr ) {
             SAVE::SAV.getActiveFile( ).registerSeenPkmn( p_pokemon->getSpecies( ) );
         }
+        char pkmnName[ PKMN_NAMELENGTH + 1 ];
+        copySafePkmnName( p_pokemon, pkmnName );
         IO::fadeScreen( IO::UNFADE, true, true );
         REG_BLDCNT       = BLEND_ALPHA | BLEND_DST_BG3;
         REG_BLDALPHA     = 0xff | ( 0x06 << 8 );
@@ -1806,16 +1859,35 @@ namespace BATTLE {
             auto fmt = std::string( GET_STRING( 263 ) );
             snprintf( buffer, 99, fmt.c_str( ),
                       FS::getTrainerClassName( _battleTrainer->getClass( ) ).c_str( ),
-                      _battleTrainer->m_strings.m_name, p_pokemon->m_boxdata.m_name );
+                      _battleTrainer->m_strings.m_name, pkmnName );
             log( std::string( buffer ) );
         } else {
-            snprintf( buffer, 99, GET_STRING( 395 ), p_pokemon->m_boxdata.m_name );
+            snprintf( buffer, 99, GET_STRING( 395 ), pkmnName );
             log( std::string( buffer ) );
+        }
+
+        // Wild opening battles can lock on some targets during the throw animation.
+        // Keep the sendout flow, but skip the throw animation in this narrow case.
+        if( !p_opponent && _isWildBattle && p_pos == 0 ) {
+            loadPkmnSprite( p_opponent, p_pos, p_pokemon );
+            animateReleaseWobble( p_opponent, p_pos );
+            for( u8 i = 0; i < 30; ++i ) { swiWaitForVBlank( ); }
+
+            SOUND::playCry( p_pokemon->getSpecies( ), p_pokemon->getForme( ), p_pokemon->isFemale( ) );
+            for( u8 i = 0; i < 45; ++i ) { swiWaitForVBlank( ); }
+
+            if( p_pokemon->isShiny( ) ) {
+                animateShiny( p_opponent, p_pos, p_pokemon->m_boxdata.m_shinyType );
+            }
+            _curHP[ !p_opponent ][ p_pos ] = 0;
+            updatePkmnStats( p_opponent, p_pos, p_pokemon );
+            return;
         }
 
         // play pokeball animation
         animateBallRelease( p_opponent, p_pos, p_pokemon->getBall( ) );
         loadPkmnSprite( p_opponent, p_pos, p_pokemon );
+        animateReleaseWobble( p_opponent, p_pos );
         for( u8 i = 0; i < 30; ++i ) { swiWaitForVBlank( ); }
 
         SOUND::playCry( p_pokemon->getSpecies( ), p_pokemon->getForme( ), p_pokemon->isFemale( ) );
@@ -1831,9 +1903,14 @@ namespace BATTLE {
     }
 
     void battleUI::sendOutFollowPkmn( u8 p_pos, pokemon* p_pokemon ) {
+        if( p_pokemon == nullptr ) {
+            return;
+        }
         if( p_pokemon != nullptr ) {
             SAVE::SAV.getActiveFile( ).registerSeenPkmn( p_pokemon->getSpecies( ) );
         }
+        char pkmnName[ PKMN_NAMELENGTH + 1 ];
+        copySafePkmnName( p_pokemon, pkmnName );
         IO::fadeScreen( IO::UNFADE, true, true );
         REG_BLDCNT       = BLEND_ALPHA | BLEND_DST_BG3;
         REG_BLDALPHA     = 0xff | ( 0x06 << 8 );
@@ -1842,7 +1919,7 @@ namespace BATTLE {
         bgUpdate( );
 
         char buffer[ 100 ];
-        snprintf( buffer, 99, GET_STRING( 395 ), p_pokemon->m_boxdata.m_name );
+        snprintf( buffer, 99, GET_STRING( 395 ), pkmnName );
         log( std::string( buffer ) );
 
         // No ball animation, pkmn slides in from left
@@ -1934,6 +2011,7 @@ namespace BATTLE {
             }
             IO::updateOAM( false );
         }
+        animateReleaseWobble( false, p_pos );
 
         SOUND::playCry( p_pokemon->getSpecies( ), p_pokemon->getForme( ), p_pokemon->isFemale( ) );
 

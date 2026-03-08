@@ -652,6 +652,9 @@ namespace SAVE {
         }
 
         if( SAV.m_saveFile[ _currentSlot ].m_gameType != UNUSED ) {
+#if defined( NEO_RELEASE_BUILD ) && ( NEO_RELEASE_BUILD == 0 )
+            // In non-release builds we skip overwrite confirmation to streamline test loops.
+#else
             // Ask the player if they want to override their save
 
             IO::yesNoBox yn;
@@ -669,6 +672,7 @@ namespace SAVE {
                 _currentSlot = 255;
                 return false;
             }
+#endif
         }
 
         cleanUp( );
@@ -721,7 +725,11 @@ namespace SAVE {
                     cleanUp( );
                     return;
                 case NEW_GAME:
+#if defined( NEO_RELEASE_BUILD ) && ( NEO_RELEASE_BUILD == 0 )
+                    if( !initNewGame( NORMAL, _currentLanguage ) ) {
+#else
                     if( !initNewGame( NORMAL, runLanguageChoice( ) ) ) {
+#endif
                         HAD_NEW_GAME = false;
                         break;
                     } else {
@@ -731,7 +739,11 @@ namespace SAVE {
                 case SPECIAL_EPISODE: {
                     u8 ep = runEpisodeChoice( );
                     if( ep == IO::choiceBox::BACK_CHOICE
+#if defined( NEO_RELEASE_BUILD ) && ( NEO_RELEASE_BUILD == 0 )
+                        || !initNewGame( SPECIAL, _currentLanguage, ep ) ) {
+#else
                         || !initNewGame( SPECIAL, runLanguageChoice( ), ep ) ) {
+#endif
                         HAD_NEW_GAME = false;
                         break;
                     } else {

@@ -75,6 +75,11 @@ struct bfPokemon {
  * pkmn to the pkmn storage system.
  */
 struct boxPokemon {
+    // Fixed-point scale used for persistent stat fractions:
+    // integer stat = raw / SCALE, fraction = raw % SCALE.
+    // SCALE is intentionally small to keep save footprint low.
+    static constexpr u16 STAT_FRACTION_SCALE = 256;
+
     u32 m_pid = 0;
 
     u32 m_experienceGained = 0;
@@ -117,6 +122,11 @@ struct boxPokemon {
 
     u8   m_curPP[ 4 ]              = { 0 }; //
     u8   m_effortValues[ 6 ]       = { 0 }; // HP,Attack,Defense,SAttack,SDefense,Speed
+    // Persistent fractional stat remainder (0..STAT_FRACTION_SCALE-1) per stat:
+    // [HP, Atk, Def, SpA, SpD, Spe]
+    // This is scaffolding for precision-preserving progression systems.
+    // Battle/UI still consume integer stats from pokemon::stats.
+    u8   m_statFraction[ 6 ]       = { 0 };
     u8   m_contestStats[ 6 ]       = { 0 }; // Cool, Beauty, Cute, Smart, Tough, Sheen
     u8   m_ribbons[ 12 ]           = { 0 };
     u8   m_gotDate[ 3 ]            = { 0 }; //(EGG)

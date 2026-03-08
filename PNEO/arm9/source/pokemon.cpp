@@ -268,22 +268,45 @@ void pokemon::setStatus( u8 p_status, u8 p_value ) {
 
 pokemon::stats calcStats( boxPokemon& p_boxdata, u8 p_level, const pkmnData* p_data ) {
     pokemon::stats res;
-    u16            pkmnId = p_boxdata.m_speciesId;
-    if( pkmnId != PKMN_SHEDINJA )
-        res.m_curHP = res.m_maxHP = ( ( p_boxdata.IVget( 0 ) + 2 * p_data->m_baseForme.m_bases[ 0 ]
-                                        + ( p_boxdata.m_effortValues[ 0 ] / 4 ) + 100 )
-                                      * p_level / 100 )
-                                    + 10;
-    else
+    constexpr u32 STAT_SCALE = boxPokemon::STAT_FRACTION_SCALE;
+
+    auto assignFixedPointStat = [&]( const u8 p_statIdx, const u64 p_fixedPointValue ) {
+        // Keep visible/battle stat integer-only while persisting fractional carry.
+        const u16 intPart = u16( p_fixedPointValue / STAT_SCALE );
+        const u8  fracPart
+            = u8( std::min<u64>( STAT_SCALE - 1, p_fixedPointValue % STAT_SCALE ) );
+
+        res.setStat( p_statIdx, intPart );
+        p_boxdata.m_statFraction[ p_statIdx ] = fracPart;
+    };
+
+    u16 pkmnId = p_boxdata.m_speciesId;
+    if( pkmnId != PKMN_SHEDINJA ) {
+        const u64 hpBase = p_boxdata.IVget( 0 ) + 2 * p_data->m_baseForme.m_bases[ 0 ]
+                           + ( p_boxdata.m_effortValues[ 0 ] / 4 ) + 100;
+        const u64 hpFixedPoint = ( hpBase * p_level * STAT_SCALE ) / 100 + 10 * STAT_SCALE;
+        assignFixedPointStat( 0, hpFixedPoint );
+        res.m_curHP = res.m_maxHP;
+    } else {
         res.m_curHP = res.m_maxHP = 1;
+        p_boxdata.m_statFraction[ 0 ] = 0;
+    }
+
     pkmnNatures nature = p_boxdata.getNature( );
 
     for( u8 i = 1; i < 6; ++i ) {
-        res.setStat( i, ( ( ( p_boxdata.IVget( i ) + 2 * p_data->m_baseForme.m_bases[ i ]
-                              + ( p_boxdata.m_effortValues[ i ] >> 2 ) )
-                            * p_level / 100.0 )
-                          + 5 )
-                            * NatMod[ nature ][ i - 1 ] / 10 );
+        // Fixed-point version of:
+        // (((IV + 2*Base + EV/4) * Level / 100) + 5) * Nature / 10
+        // This preserves sub-integer precision in box data for future systems.
+        const u64 statBase = p_boxdata.IVget( i ) + 2 * p_data->m_baseForme.m_bases[ i ]
+                             + ( p_boxdata.m_effortValues[ i ] >> 2 );
+        u64 statFixedPoint = statBase * p_level * STAT_SCALE;
+        statFixedPoint /= 100;
+        statFixedPoint += 5 * STAT_SCALE;
+        statFixedPoint *= NatMod[ nature ][ i - 1 ];
+        statFixedPoint /= 10;
+
+        assignFixedPointStat( i, statFixedPoint );
     }
     return res;
 }

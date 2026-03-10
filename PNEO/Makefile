@@ -41,6 +41,9 @@ export TOPDIR		:=	$(CURDIR)
 export NDSTOOL		:=  $(CURDIR)/tools/ndstool/ndstool
 export LIBNDS		:=	$(abspath lib/libnds)
 
+# Optional test-mode build flags (pass on make command line):
+#   T_BATTLE=1        -> New Game uses fast-start + map-11 battle test spawn.
+#   T_SPAWN_TRAINER=1 -> Auto-start one trainer battle right after New Game spawn.
 #main targets
 all: $(TARGET).nds
 

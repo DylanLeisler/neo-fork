@@ -20,4 +20,4 @@
 	url = https://github.com/neo-engine/libfat-1.2.0
 [submodule "sachi"]
 	path = sachi
-	url = https://github.com/DylanLeisler/sachi-fork.git
+	url = git@github.com:DylanLeisler/sachi-fork.git
